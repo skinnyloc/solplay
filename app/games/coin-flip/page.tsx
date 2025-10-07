@@ -93,10 +93,10 @@ export default function CoinFlipPage() {
       const data = await response.json();
 
       if (data.matched) {
-        // Immediately matched
+        // Immediately matched - we are player 2, so opponent is player 1
         setGameId(data.gameId);
-        setOpponentWallet(data.player2Wallet);
-        setOpponentChoice(data.player2Choice);
+        setOpponentWallet(data.player1Wallet); // Fixed: opponent is player1
+        setOpponentChoice(data.player1Choice); // Fixed: get player1's choice
         setGamePhase('confirming');
         toast('Opponent found!', { icon: '✅' });
 
@@ -127,16 +127,27 @@ export default function CoinFlipPage() {
     }
 
     try {
-      // Call server-side flip API
+      // Determine who is player1 vs player2
+      // If we created the game (waiting), we are player1
+      // If we joined a game (matched immediately), we are player2
+      const myWallet = publicKey.toBase58();
+
+      // Fetch game to see who is who
+      const gameResponse = await fetch(`/api/games/${gameId}`);
+      const { game: gameData } = await gameResponse.json();
+
+      const isPlayer1 = gameData.player1_wallet === myWallet;
+
+      // Call server-side flip API with correct player assignments
       const response = await fetch('/api/games/coin-flip/flip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gameId,
-          player1Wallet: publicKey.toBase58(),
-          player2Wallet: opponentWallet,
-          player1Choice: playerChoice,
-          player2Choice: opponentChoice,
+          player1Wallet: isPlayer1 ? myWallet : opponentWallet,
+          player2Wallet: isPlayer1 ? opponentWallet : myWallet,
+          player1Choice: isPlayer1 ? playerChoice : opponentChoice,
+          player2Choice: isPlayer1 ? opponentChoice : playerChoice,
           wagerAmount: betAmount,
         }),
       });
@@ -309,7 +320,7 @@ export default function CoinFlipPage() {
                 {/* Find Opponent Button */}
                 <button
                   onClick={handleFindOpponent}
-                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 py-5 rounded-xl font-bold text-xl transition-all duration-200 hover:shadow-glow-lg"
+                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl transition-all duration-200 hover:shadow-glow-lg"
                 >
                   Find Opponent
                 </button>
