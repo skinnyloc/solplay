@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid game type' }, { status: 400 });
     }
 
-    // Check if there's a waiting game with same type and wager
-    const { data: waitingGames, error: searchError } = await supabase
+    // First try to find exact match (same wager)
+    let { data: waitingGames, error: searchError } = await supabase
       .from('games')
       .select('*')
       .eq('game_type', gameType)
@@ -25,7 +25,38 @@ export async function POST(request: NextRequest) {
       .eq('status', 'waiting')
       .is('player2_wallet', null)
       .neq('player1_wallet', walletAddress) // Don't match with yourself
+      .order('created_at', { ascending: true })
       .limit(1);
+
+    // If no exact match, find games with equal or lower wager
+    if (!waitingGames || waitingGames.length === 0) {
+      const { data: flexibleGames } = await supabase
+        .from('games')
+        .select('*')
+        .eq('game_type', gameType)
+        .lte('wager_amount', wagerAmount) // Less than or equal to your wager
+        .eq('status', 'waiting')
+        .is('player2_wallet', null)
+        .neq('player1_wallet', walletAddress)
+        .order('wager_amount', { ascending: false }) // Prefer highest wager first
+        .order('created_at', { ascending: true }) // Then oldest first
+        .limit(3); // Get top 3 options
+
+      if (flexibleGames && flexibleGames.length > 0) {
+        // Return available games for user to choose
+        return NextResponse.json({
+          matched: false,
+          availableGames: flexibleGames.map(g => ({
+            gameId: g.id,
+            wagerAmount: g.wager_amount,
+            opponent: g.player1_wallet,
+          })),
+          message: 'No exact match. Would you like to join a game with different wager?',
+        });
+      }
+
+      waitingGames = null; // No matches at all
+    }
 
     if (searchError) {
       console.error('Error searching for games:', searchError);

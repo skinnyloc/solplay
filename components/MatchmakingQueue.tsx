@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 
-type QueueStatus = 'idle' | 'searching' | 'found';
+type QueueStatus = 'idle' | 'searching' | 'found' | 'alternatives';
 type GameType = 'chess' | 'checkers' | 'connect-four' | 'coin-flip';
 
 interface MatchmakingQueueProps {
@@ -21,6 +21,12 @@ interface QueueStats {
   gamesInProgress: number;
 }
 
+interface AlternativeGame {
+  gameId: string;
+  wagerAmount: number;
+  opponent: string;
+}
+
 export const MatchmakingQueue = ({
   gameType,
   walletAddress,
@@ -32,6 +38,7 @@ export const MatchmakingQueue = ({
   const [queueStatus, setQueueStatus] = useState<QueueStatus>('idle');
   const [queueTime, setQueueTime] = useState(0);
   const [gameId, setGameId] = useState<string | null>(null);
+  const [alternativeGames, setAlternativeGames] = useState<AlternativeGame[]>([]);
   const [queueStats, setQueueStats] = useState<QueueStats>({
     playersInQueue: 0,
     averageWaitTime: 0,
@@ -115,6 +122,11 @@ export const MatchmakingQueue = ({
             router.push(`/games/${gameType}/play/${data.gameId}`);
           }, 1000);
         }
+      } else if (data.availableGames && data.availableGames.length > 0) {
+        // Alternative games with different wagers available
+        setAlternativeGames(data.availableGames);
+        setQueueStatus('alternatives');
+        toast(data.message || 'Alternative games found!', { icon: 'ℹ️' });
       } else {
         // Waiting for match - start polling
         setGameId(data.gameId);
@@ -183,6 +195,41 @@ export const MatchmakingQueue = ({
     toast('Matchmaking canceled', { icon: 'ℹ️' });
   };
 
+  const handleAcceptAlternative = async (game: AlternativeGame) => {
+    try {
+      const response = await fetch('/api/matchmaking/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          gameId: game.gameId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.matched) {
+        setQueueStatus('found');
+        toast('Joined game!', { icon: '🎮' });
+
+        if (onMatchFound) {
+          onMatchFound(data.gameId, data.opponent);
+        } else {
+          setTimeout(() => {
+            router.push(`/games/${gameType}/play/${data.gameId}`);
+          }, 1000);
+        }
+      } else {
+        toast(data.error || 'Game no longer available', { icon: '❌' });
+        setQueueStatus('idle');
+      }
+    } catch (error) {
+      console.error('Error accepting game:', error);
+      toast('Failed to join game', { icon: '❌' });
+      setQueueStatus('idle');
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Main button */}
@@ -221,6 +268,44 @@ export const MatchmakingQueue = ({
           <div className="text-4xl mb-2">✅</div>
           <h3 className="text-xl font-bold text-green-400 mb-2">Match Found!</h3>
           <p className="text-slate-300">Starting game...</p>
+        </div>
+      )}
+
+      {queueStatus === 'alternatives' && (
+        <div className="space-y-3">
+          <div className="bg-blue-500/10 border-2 border-blue-500 rounded-xl p-4">
+            <h3 className="text-lg font-bold text-blue-400 mb-2">⚡ Available Games</h3>
+            <p className="text-sm text-slate-300 mb-3">
+              No exact match found for {wagerAmount} SOL. Join one of these games instead:
+            </p>
+
+            <div className="space-y-2">
+              {alternativeGames.map((game) => (
+                <div
+                  key={game.gameId}
+                  className="bg-slate-800/50 border border-teal-500 rounded-lg p-3 flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-bold text-teal-400">{game.wagerAmount} SOL</div>
+                    <div className="text-xs text-slate-400">vs {game.opponent.slice(0, 8)}...</div>
+                  </div>
+                  <button
+                    onClick={() => handleAcceptAlternative(game)}
+                    className="bg-teal-500 hover:bg-teal-600 px-4 py-2 rounded-lg font-semibold text-sm transition-all"
+                  >
+                    Join Game
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setQueueStatus('idle')}
+            className="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-semibold transition-all"
+          >
+            Back to Search
+          </button>
         </div>
       )}
 
