@@ -1,3 +1,7 @@
+# SolPlay Gaming Platform
+
+A decentralized gaming platform built on Solana where players can compete in classic games with real SOL wagers.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
