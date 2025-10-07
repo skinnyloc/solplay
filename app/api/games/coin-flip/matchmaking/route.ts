@@ -10,16 +10,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Look for waiting opponent (either same choice or opposite choice - 50/50 random matchmaking)
-    const { data: waitingGames, error: searchError } = await supabase
+    // First try exact wager match
+    let { data: waitingGames, error: searchError } = await supabase
       .from('games')
       .select('*')
-      .eq('game_type', 'coin-flip')
+      .eq('game_type', 'coin_flip')
       .eq('status', 'waiting')
       .eq('wager_amount', wagerAmount)
       .is('player2_wallet', null)
       .neq('player1_wallet', playerWallet)
-      .limit(5);
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    // If no exact match, try flexible matching (equal or lower wager)
+    if (!waitingGames || waitingGames.length === 0) {
+      const { data: flexibleGames } = await supabase
+        .from('games')
+        .select('*')
+        .eq('game_type', 'coin_flip')
+        .lte('wager_amount', wagerAmount) // Less than or equal
+        .eq('status', 'waiting')
+        .is('player2_wallet', null)
+        .neq('player1_wallet', playerWallet)
+        .order('wager_amount', { ascending: false }) // Prefer highest wager
+        .order('created_at', { ascending: true }) // Then oldest
+        .limit(1);
+
+      waitingGames = flexibleGames || [];
+    }
 
     if (searchError) {
       console.error('Error searching for games:', searchError);
@@ -67,7 +85,7 @@ export async function POST(request: NextRequest) {
     const { data: newGame, error: createError } = await supabase
       .from('games')
       .insert({
-        game_type: 'coin-flip',
+        game_type: 'coin_flip',
         player1_wallet: playerWallet,
         player2_wallet: null,
         wager_amount: wagerAmount,
