@@ -136,7 +136,20 @@ export default function CoinFlipPage() {
       const gameResponse = await fetch(`/api/games/${gameId}`);
       const { game: gameData } = await gameResponse.json();
 
+      console.log('📋 Game Data:', gameData);
+
+      if (!gameData) {
+        toast('Game not found!', { icon: '❌' });
+        setGamePhase('selection');
+        setChoiceLocked(false);
+        return;
+      }
+
       const isPlayer1 = gameData.player1_wallet === myWallet;
+      const actualWagerAmount = gameData.wager_amount; // Use actual wager from game
+
+      console.log('🎯 isPlayer1:', isPlayer1);
+      console.log('💰 Actual Wager:', actualWagerAmount);
 
       // Call server-side flip API with correct player assignments
       const response = await fetch('/api/games/coin-flip/flip', {
@@ -148,8 +161,17 @@ export default function CoinFlipPage() {
           player2Wallet: isPlayer1 ? opponentWallet : myWallet,
           player1Choice: isPlayer1 ? playerChoice : opponentChoice,
           player2Choice: isPlayer1 ? opponentChoice : playerChoice,
-          wagerAmount: betAmount,
+          wagerAmount: actualWagerAmount, // Use game's actual wager
         }),
+      });
+
+      console.log('📤 Flip Request:', {
+        gameId,
+        player1Wallet: isPlayer1 ? myWallet : opponentWallet,
+        player2Wallet: isPlayer1 ? opponentWallet : myWallet,
+        player1Choice: isPlayer1 ? playerChoice : opponentChoice,
+        player2Choice: isPlayer1 ? opponentChoice : playerChoice,
+        wagerAmount: actualWagerAmount,
       });
 
       const data = await response.json();
