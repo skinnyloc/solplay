@@ -154,6 +154,25 @@ export default function CoinFlipPage() {
 
       const data = await response.json();
 
+      console.log('🎲 Flip API Response:', data);
+
+      if (data.error) {
+        console.error('❌ Flip API Error:', data.error);
+        toast(data.error, { icon: '❌' });
+        setGamePhase('selection');
+        setChoiceLocked(false);
+        return;
+      }
+
+      // Validate we got the necessary data
+      if (!data.result || !data.winner) {
+        console.error('❌ Invalid flip response:', data);
+        toast('Invalid game result. Please try again.', { icon: '❌' });
+        setGamePhase('selection');
+        setChoiceLocked(false);
+        return;
+      }
+
       // Wait for coin animation (2 seconds)
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -164,6 +183,10 @@ export default function CoinFlipPage() {
 
       // Check if player won
       const won = data.winner === publicKey.toBase58();
+      console.log('🏆 Winner:', data.winner);
+      console.log('👤 My Wallet:', publicKey.toBase58());
+      console.log('✅ Did I Win?', won);
+
       setIsWinner(won);
       setWinnerPayout(data.winnerPayout);
 
@@ -174,10 +197,11 @@ export default function CoinFlipPage() {
 
       // Show result after brief delay
       setTimeout(() => {
+        console.log('📊 Setting game phase to result');
         setGamePhase('result');
       }, 500);
     } catch (error) {
-      console.error('Coin flip error:', error);
+      console.error('💥 Coin flip error:', error);
       toast('Flip failed. Please try again.', { icon: '❌' });
       setGamePhase('selection');
       setChoiceLocked(false);
@@ -395,7 +419,18 @@ export default function CoinFlipPage() {
                     </div>
                   </div>
 
-                  <p className="text-xl text-slate-400">Good luck!</p>
+                  <p className="text-xl text-slate-400 mb-4">Good luck!</p>
+
+                  {/* Emergency exit if stuck */}
+                  <button
+                    onClick={() => {
+                      console.log('⚠️ User manually reset from flipping phase');
+                      handleRematch();
+                    }}
+                    className="mt-4 text-sm text-slate-500 hover:text-slate-300 underline"
+                  >
+                    Something wrong? Click to restart
+                  </button>
                 </div>
               </div>
             )}
