@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { generateDummyEscrowPDA } from '@/lib/demoEscrow';
 
 /**
  * Simulation Mode API
@@ -56,7 +57,8 @@ export async function POST(request: NextRequest) {
     // Create game with both players immediately matched
     const houseFee = wagerAmount * 0.03;
 
-    const { data: newGame, error: createError } = await supabase
+    // First create the game to get its ID
+    const { data: tempGame, error: tempError } = await supabase
       .from('games')
       .insert({
         game_type: gameType,
@@ -64,20 +66,36 @@ export async function POST(request: NextRequest) {
         player2_wallet: botWallet,
         wager_amount: wagerAmount,
         house_fee: houseFee,
-        status: 'in_progress', // Start immediately
+        status: 'in_progress',
         game_state: {
           isSimulation: true,
           botPlayer: botWallet,
+          demoMode: true,
         },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         started_at: new Date().toISOString(),
-        // Auto-mark as deposited for simulation
         player1_deposited: true,
         player2_deposited: true,
-        player1_tx_signature: 'SIMULATION_TX_PLAYER',
-        player2_tx_signature: 'SIMULATION_TX_BOT',
+        player1_tx_signature: 'SIM_TX_PLAYER_' + Date.now(),
+        player2_tx_signature: 'SIM_TX_BOT_' + Date.now(),
       })
+      .select()
+      .single();
+
+    if (tempError || !tempGame) {
+      console.error('💥 Error creating temp game:', tempError);
+      return NextResponse.json({ error: `Database error: ${tempError?.message}` }, { status: 500 });
+    }
+
+    // Generate dummy escrow PDA using game ID
+    const escrowPDA = generateDummyEscrowPDA(tempGame.id);
+
+    // Update game with escrow PDA
+    const { data: newGame, error: createError } = await supabase
+      .from('games')
+      .update({ escrow_pda: escrowPDA })
+      .eq('id', tempGame.id)
       .select()
       .single();
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'react-hot-toast';
+import { DemoModeBanner } from '@/components/DemoModeBanner';
 
 type CoinSide = 'heads' | 'tails';
 type GamePhase = 'selection' | 'waiting' | 'confirming' | 'flipping' | 'result';
@@ -264,6 +265,9 @@ export default function CoinFlipPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
+      {/* Demo Mode Banner */}
+      <DemoModeBanner />
+
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="fixed inset-0 pointer-events-none z-50">
@@ -479,6 +483,9 @@ export default function CoinFlipPage() {
                   {isWinner && (
                     <p className="text-sm text-slate-400 mt-2">(House fee: {houseFee.toFixed(5)} SOL deducted)</p>
                   )}
+                  <p className="text-xs text-yellow-400 mt-3">
+                    ⚠️ DEMO MODE - Winnings not actually transferred
+                  </p>
                 </div>
 
                 <div className="flex gap-4">
