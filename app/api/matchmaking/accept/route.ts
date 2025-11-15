@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     // Get the game to verify it's still available
     const { data: game, error: fetchError } = await supabase
-      .from('games')
+      .from("active_games")
       .select('*')
       .eq('id', gameId)
       .eq('status', 'waiting')
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Join the game as player 2
     const { data: updatedGame, error: updateError } = await supabase
-      .from('games')
+      .from("active_games")
       .update({
         player2_wallet: walletAddress,
         status: 'in_progress',

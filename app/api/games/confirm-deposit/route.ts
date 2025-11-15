@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get game from database
-    const { data: game, error: gameError } = await supabase.from('games').select('*').eq('id', gameId).single();
+    const { data: game, error: gameError } = await supabase.from("active_games").select('*').eq('id', gameId).single();
 
     if (gameError || !game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       updateData.player2_tx_signature = signature;
     }
 
-    const { error: updateError } = await supabase.from('games').update(updateData).eq('id', gameId);
+    const { error: updateError } = await supabase.from("active_games").update(updateData).eq('id', gameId);
 
     if (updateError) {
       console.error('Error updating game:', updateError);
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     if (bothDeposited) {
       // Both players deposited - activate the game
       await supabase
-        .from('games')
+        .from("active_games")
         .update({
           status: 'active',
           started_at: new Date().toISOString(),

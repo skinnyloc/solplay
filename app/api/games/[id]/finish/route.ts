@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     // Update game with result
     const { error } = await supabase
-      .from('games')
+      .from("active_games")
       .update({
         status: 'completed',
         winner_wallet: winner,
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Update user stats
-    const { data: game } = await supabase.from('games').select('*').eq('id', gameId).single();
+    const { data: game } = await supabase.from("active_games").select('*').eq('id', gameId).single();
 
     if (game) {
       // Update winner stats

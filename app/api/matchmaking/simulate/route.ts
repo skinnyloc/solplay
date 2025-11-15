@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     // First create the game to get its ID
     const { data: tempGame, error: tempError } = await supabase
-      .from('games')
+      .from("active_games")
       .insert({
         game_type: gameType,
         player1_wallet: walletAddress,
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     // Update game with escrow PDA
     const { data: newGame, error: createError } = await supabase
-      .from('games')
+      .from("active_games")
       .update({ escrow_pda: escrowPDA })
       .eq('id', tempGame.id)
       .select()

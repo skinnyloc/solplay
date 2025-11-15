@@ -150,7 +150,7 @@ export async function createGame(
     const houseFee = wagerAmount * 0.03;
 
     const { data, error } = await supabase
-      .from('games')
+      .from("active_games")
       .insert([
         {
           game_type: gameType,
@@ -200,7 +200,7 @@ export async function updateGameStatus(
     }
 
     const { data, error } = await supabase
-      .from('games')
+      .from("active_games")
       .update(updateData)
       .eq('id', gameId)
       .select()
@@ -224,7 +224,7 @@ export async function updateGameStatus(
 export async function getGameById(gameId: string): Promise<Game | null> {
   try {
     const { data, error } = await supabase
-      .from('games')
+      .from("active_games")
       .select('*')
       .eq('id', gameId)
       .single();
@@ -252,7 +252,7 @@ export async function getWaitingGames(
 ): Promise<Game[]> {
   try {
     let query = supabase
-      .from('games')
+      .from("active_games")
       .select('*')
       .eq('status', 'waiting')
       .is('player2_wallet', null);
@@ -281,7 +281,7 @@ export async function getWaitingGames(
 export async function joinGame(gameId: string, player2Wallet: string): Promise<Game> {
   try {
     const { data, error } = await supabase
-      .from('games')
+      .from("active_games")
       .update({
         player2_wallet: player2Wallet,
         status: 'active',
@@ -390,7 +390,7 @@ export async function getLeaderboard(limit: number = 100): Promise<LeaderboardEn
 export async function getUserGames(walletAddress: string, limit: number = 50): Promise<Game[]> {
   try {
     const { data, error } = await supabase
-      .from('games')
+      .from("active_games")
       .select('*')
       .or(`player1_wallet.eq.${walletAddress},player2_wallet.eq.${walletAddress}`)
       .order('created_at', { ascending: false })

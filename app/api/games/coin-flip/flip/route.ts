@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Update game in Supabase
     const { error: gameError } = await supabase
-      .from('games')
+      .from("active_games")
       .update({
         status: 'completed',
         winner_wallet: winnerWallet,

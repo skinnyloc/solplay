@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     // First try exact wager match
     let { data: waitingGames, error: searchError } = await supabase
-      .from('games')
+      .from("active_games")
       .select('*')
       .eq('game_type', 'coin_flip')
       .eq('status', 'waiting')
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     // If no exact match, try flexible matching (equal or lower wager)
     if (!waitingGames || waitingGames.length === 0) {
       const { data: flexibleGames } = await supabase
-        .from('games')
+        .from("active_games")
         .select('*')
         .eq('game_type', 'coin_flip')
         .lte('wager_amount', wagerAmount) // Less than or equal
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
       // Update game with player 2
       const { data: updatedGame, error: updateError } = await supabase
-        .from('games')
+        .from("active_games")
         .update({
           player2_wallet: playerWallet,
           status: 'in_progress',
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // No opponent found, create new waiting game
     const { data: newGame, error: createError } = await supabase
-      .from('games')
+      .from("active_games")
       .insert({
         game_type: 'coin_flip',
         player1_wallet: playerWallet,
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Game ID required' }, { status: 400 });
     }
 
-    const { data: game, error } = await supabase.from('games').select('*').eq('id', gameId).single();
+    const { data: game, error } = await supabase.from("active_games").select('*').eq('id', gameId).single();
 
     if (error) {
       console.error('Error fetching game:', error);

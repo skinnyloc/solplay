@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const wagerAmount = searchParams.get('wagerAmount');
 
     // Count players in queue (waiting games)
-    let waitingQuery = supabase.from('games').select('*', { count: 'exact', head: true }).eq('status', 'waiting');
+    let waitingQuery = supabase.from("active_games").select('*', { count: 'exact', head: true }).eq('status', 'waiting');
 
     if (gameType) {
       waitingQuery = waitingQuery.eq('game_type', gameType);
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Count games in progress
     let progressQuery = supabase
-      .from('games')
+      .from("active_games")
       .select('*', { count: 'exact', head: true })
       .eq('status', 'in_progress');
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     let completedQuery = supabase
-      .from('games')
+      .from("active_games")
       .select('created_at, started_at')
       .eq('status', 'completed')
       .gte('created_at', oneHourAgo)

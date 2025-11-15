@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     // First try to find exact match (same wager)
     let { data: waitingGames, error: searchError } = await supabase
-      .from('games')
+      .from("active_games")
       .select('*')
       .eq('game_type', gameType)
       .eq('wager_amount', wagerAmount)
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     // If no exact match, find games with equal or lower wager
     if (!waitingGames || waitingGames.length === 0) {
       const { data: flexibleGames } = await supabase
-        .from('games')
+        .from("active_games")
         .select('*')
         .eq('game_type', gameType)
         .lte('wager_amount', wagerAmount) // Less than or equal to your wager
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       const matchedGame = waitingGames[0];
 
       const { data: updatedGame, error: updateError } = await supabase
-        .from('games')
+        .from("active_games")
         .update({
           player2_wallet: walletAddress,
           status: 'in_progress',
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       const houseFee = wagerAmount * 0.03;
 
       const { data: newGame, error: createError } = await supabase
-        .from('games')
+        .from("active_games")
         .insert({
           game_type: gameType,
           player1_wallet: walletAddress,

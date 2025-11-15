@@ -10,7 +10,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { gameI
     }
 
     // Fetch game to verify it's in waiting status
-    const { data: game, error: fetchError } = await supabase.from('games').select('*').eq('id', gameId).single();
+    const { data: game, error: fetchError } = await supabase.from("active_games").select('*').eq('id', gameId).single();
 
     if (fetchError || !game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
@@ -22,7 +22,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { gameI
     }
 
     // Delete the game
-    const { error: deleteError } = await supabase.from('games').delete().eq('id', gameId);
+    const { error: deleteError } = await supabase.from("active_games").delete().eq('id', gameId);
 
     if (deleteError) {
       console.error('Error deleting game:', deleteError);

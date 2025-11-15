@@ -5,7 +5,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     const gameId = params.id;
 
-    const { data: game, error } = await supabase.from('games').select('*').eq('id', gameId).single();
+    const { data: game, error } = await supabase.from("active_games").select('*').eq('id', gameId).single();
 
     if (error || !game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
@@ -23,13 +23,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const gameId = params.id;
 
     // Only allow deleting games that are in 'waiting' status
-    const { data: game } = await supabase.from('games').select('status').eq('id', gameId).single();
+    const { data: game } = await supabase.from("active_games").select('status').eq('id', gameId).single();
 
     if (!game || game.status !== 'waiting') {
       return NextResponse.json({ error: 'Cannot delete this game' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('games').delete().eq('id', gameId);
+    const { error } = await supabase.from("active_games").delete().eq('id', gameId);
 
     if (error) {
       console.error('Error deleting game:', error);

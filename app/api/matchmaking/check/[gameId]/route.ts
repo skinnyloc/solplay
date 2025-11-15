@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, { params }: { params: { gameId: 
     }
 
     // Fetch game from database
-    const { data: game, error } = await supabase.from('games').select('*').eq('id', gameId).single();
+    const { data: game, error } = await supabase.from("active_games").select('*').eq('id', gameId).single();
 
     if (error || !game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
