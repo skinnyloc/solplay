@@ -120,9 +120,9 @@ function hashString(str: string): string {
 }
 
 /**
- * Demo mode indicator
+ * Demo mode indicator - DISABLED
  */
-export const IS_DEMO_MODE = true;
+export const IS_DEMO_MODE = false;
 
 /**
  * Helper to display demo mode warnings in UI

@@ -1,24 +1,15 @@
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
-// Network configuration
+// Network configuration - USING REAL DEVNET RPC ONLY
 const NETWORK = process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'devnet';
-const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const QUICKNODE_RPC_URL = process.env.NEXT_PUBLIC_QUICKNODE_RPC_URL;
+const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC!;
 
-// Initialize connection with retry logic
-export const createConnection = (useMainnet = false): Connection => {
-  const url = useMainnet && QUICKNODE_RPC_URL ? QUICKNODE_RPC_URL : RPC_URL;
-  return new Connection(url, {
-    commitment: 'confirmed',
-    confirmTransactionInitialTimeout: 60000,
-  });
-};
+if (!RPC_URL) {
+  throw new Error('NEXT_PUBLIC_SOLANA_RPC environment variable is required');
+}
 
-// Primary connection (Helius Devnet)
-export const connection = createConnection(false);
-
-// Fallback connection (QuickNode Mainnet)
-export const mainnetConnection = QUICKNODE_RPC_URL ? createConnection(true) : connection;
+// Direct connection to Devnet RPC - no fallbacks
+export const connection = new Connection(RPC_URL, 'confirmed');
 
 // Convert SOL to lamports
 export const solToLamports = (sol: number): number => {

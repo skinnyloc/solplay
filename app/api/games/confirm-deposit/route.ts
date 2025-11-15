@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { supabase } from '@/lib/supabase';
 
-const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC!;
+
+if (!RPC_URL) {
+  throw new Error('NEXT_PUBLIC_SOLANA_RPC environment variable is required');
+}
+
 const connection = new Connection(RPC_URL, 'confirmed');
 
 export async function POST(request: NextRequest) {
