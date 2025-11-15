@@ -10,6 +10,16 @@ const nextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
+  webpack: (config, { isServer }) => {
+    // Fix pino-pretty error on Vercel
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        'pino-pretty': false,
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
