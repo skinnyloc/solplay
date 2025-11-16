@@ -5,11 +5,39 @@ import { supabase } from '@/lib/supabase';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { gameId, player1Wallet, player2Wallet, player1Choice, player2Choice, wagerAmount } = body;
+    const { gameId, player1Wallet, player2Wallet, player1Choice, player2Choice } = body;
 
     // Validate input
     if (!gameId || !player1Wallet || !player2Wallet || !player1Choice || !player2Choice) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Fetch game to get actual wagers
+    const { data: game, error: fetchError } = await supabase
+      .from('active_games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+
+    if (fetchError || !game) {
+      console.error('Error fetching game:', fetchError);
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+
+    // Verify both players are present
+    if (!game.player2_wallet) {
+      return NextResponse.json({ error: 'Game not ready - waiting for player 2' }, { status: 400 });
+    }
+
+    // Use matched_wager from game (already calculated when player 2 joined)
+    const matchedWager = game.matched_wager;
+    const totalPot = game.total_pot;
+    const houseFee = game.house_fee;
+    const netPot = game.net_pot;
+
+    if (!matchedWager || !totalPot || !houseFee || !netPot) {
+      console.error('Game missing pot calculations:', game);
+      return NextResponse.json({ error: 'Game data incomplete' }, { status: 500 });
     }
 
     // Generate cryptographically secure random result
@@ -28,10 +56,7 @@ export async function POST(request: NextRequest) {
       loserWallet = player1Wallet;
     }
 
-    // Calculate payouts (3% house fee)
-    const totalPot = wagerAmount * 2;
-    const houseFee = totalPot * 0.03;
-    const winnerPayout = totalPot - houseFee;
+    const winnerPayout = netPot; // Winner gets net pot (after house fee)
 
     // Update game in Supabase
     const { error: gameError } = await supabase
@@ -39,13 +64,13 @@ export async function POST(request: NextRequest) {
       .update({
         status: 'completed',
         winner_wallet: winnerWallet,
+        completed_at: new Date().toISOString(),
         game_state: {
           result,
           player1Choice,
           player2Choice,
           randomBytes: randomBytes[0], // For transparency/verification
         },
-        updated_at: new Date().toISOString(),
       })
       .eq('id', gameId);
 
@@ -59,7 +84,7 @@ export async function POST(request: NextRequest) {
       game_id: gameId,
       player_wallet: winnerWallet,
       move_data: { result, winner: winnerWallet },
-      created_at: new Date().toISOString(),
+      move_number: 1,
     });
 
     if (moveError) {
@@ -96,13 +121,10 @@ export async function POST(request: NextRequest) {
         .from('users')
         .update({
           total_games_played: (loserData.total_games_played || 0) + 1,
-          total_earnings: (loserData.total_earnings || 0) - wagerAmount,
+          total_earnings: (loserData.total_earnings || 0) - matchedWager,
         })
         .eq('wallet_address', loserWallet);
     }
-
-    // Refresh leaderboard materialized view
-    await supabase.rpc('refresh_leaderboard');
 
     return NextResponse.json({
       result,
