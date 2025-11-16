@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('game_type', 'coin_flip')
       .eq('status', 'waiting')
-      .eq('wager_amount', wagerAmount)
+      .eq('player1_wager', wagerAmount)
       .is('player2_wallet', null)
       .neq('player1_wallet', playerWallet)
       .order('created_at', { ascending: true })
@@ -28,11 +28,11 @@ export async function POST(request: NextRequest) {
         .from("active_games")
         .select('*')
         .eq('game_type', 'coin_flip')
-        .lte('wager_amount', wagerAmount) // Less than or equal
+        .lte('player1_wager', wagerAmount) // Less than or equal
         .eq('status', 'waiting')
         .is('player2_wallet', null)
         .neq('player1_wallet', playerWallet)
-        .order('wager_amount', { ascending: false }) // Prefer highest wager
+        .order('player1_wager', { ascending: false }) // Prefer highest wager
         .order('created_at', { ascending: true }) // Then oldest
         .limit(1);
 
@@ -50,17 +50,28 @@ export async function POST(request: NextRequest) {
       const randomGame = waitingGames[Math.floor(Math.random() * waitingGames.length)];
       const player1Choice = randomGame.game_state?.player1Choice || 'heads';
 
+      // Calculate matched wager, pot, and fees
+      const matchedWager = Math.min(randomGame.player1_wager, wagerAmount);
+      const totalPot = matchedWager * 2;
+      const houseFee = totalPot * 0.03; // 3% house fee
+      const netPot = totalPot - houseFee;
+
       // Update game with player 2
       const { data: updatedGame, error: updateError } = await supabase
         .from("active_games")
         .update({
           player2_wallet: playerWallet,
+          player2_wager: wagerAmount,
+          matched_wager: matchedWager,
+          total_pot: totalPot,
+          house_fee: houseFee,
+          net_pot: netPot,
           status: 'in_progress',
+          started_at: new Date().toISOString(),
           game_state: {
             player1Choice,
             player2Choice: playerChoice,
           },
-          updated_at: new Date().toISOString(),
         })
         .eq('id', randomGame.id)
         .select()
@@ -82,19 +93,26 @@ export async function POST(request: NextRequest) {
     }
 
     // No opponent found, create new waiting game
+    // Initialize player1_wager, but leave player2_wager null until matched
     const { data: newGame, error: createError } = await supabase
       .from("active_games")
       .insert({
         game_type: 'coin_flip',
         player1_wallet: playerWallet,
         player2_wallet: null,
-        wager_amount: wagerAmount,
+        player1_wager: wagerAmount,
+        player2_wager: null,
+        matched_wager: null,
+        total_pot: null,
+        house_fee: null,
+        net_pot: null,
         status: 'waiting',
+        player1_deposited: false,
+        player2_deposited: false,
         game_state: {
           player1Choice: playerChoice,
         },
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
