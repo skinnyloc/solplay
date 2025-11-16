@@ -5,97 +5,81 @@ import { supabase } from '@/lib/supabase';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { gameId, player1Wallet, player2Wallet, player1Choice, player2Choice } = body;
+    const { gameId } = body;
 
-    // Validate input
-    if (!gameId || !player1Wallet || !player2Wallet || !player1Choice || !player2Choice) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!gameId) {
+      return NextResponse.json({ error: 'Missing gameId' }, { status: 400 });
     }
 
-    // Fetch game to get actual wagers
-    const { data: game, error: fetchError } = await supabase
+    // 1. Fetch the game to get all DB values
+    const { data: game, error: gameFetchError } = await supabase
       .from('active_games')
       .select('*')
       .eq('id', gameId)
       .single();
 
-    if (fetchError || !game) {
-      console.error('Error fetching game:', fetchError);
+    if (gameFetchError || !game) {
+      console.error('Failed to fetch game:', gameFetchError);
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    // Verify both players are present
-    if (!game.player2_wallet) {
-      return NextResponse.json({ error: 'Game not ready - waiting for player 2' }, { status: 400 });
+    const {
+      player1_wallet,
+      player2_wallet,
+      matched_wager,
+      total_pot,
+      house_fee,
+      net_pot,
+      game_state
+    } = game;
+
+    // Extract choices from game_state
+    const player1Choice = game_state?.player1Choice;
+    const player2Choice = game_state?.player2Choice;
+
+    if (!player1_wallet || !player2_wallet || !player1Choice || !player2Choice) {
+      return NextResponse.json({ error: 'Game not ready - missing players or choices' }, { status: 400 });
     }
 
-    // Use matched_wager from game (already calculated when player 2 joined)
-    const matchedWager = game.matched_wager;
-    const totalPot = game.total_pot;
-    const houseFee = game.house_fee;
-    const netPot = game.net_pot;
-
-    if (!matchedWager || !totalPot || !houseFee || !netPot) {
-      console.error('Game missing pot calculations:', game);
-      return NextResponse.json({ error: 'Game data incomplete' }, { status: 500 });
+    if (!matched_wager || !total_pot || !house_fee || !net_pot) {
+      return NextResponse.json({ error: 'Game not ready - missing pot calculations' }, { status: 400 });
     }
 
-    // Generate cryptographically secure random result
+    // 2. Generate cryptographically secure random result
     const randomBytes = crypto.randomBytes(1);
     const result: 'heads' | 'tails' = randomBytes[0] % 2 === 0 ? 'heads' : 'tails';
 
-    // Determine winner
-    let winnerWallet: string;
-    let loserWallet: string;
+    // 3. Determine winner and loser
+    const winner = player1Choice === result ? player1_wallet : player2_wallet;
+    const loser = winner === player1_wallet ? player2_wallet : player1_wallet;
 
-    if (player1Choice === result) {
-      winnerWallet = player1Wallet;
-      loserWallet = player2Wallet;
-    } else {
-      winnerWallet = player2Wallet;
-      loserWallet = player1Wallet;
-    }
+    const winnerPayout = net_pot; // Winner gets net pot (total - house fee)
 
-    const winnerPayout = netPot; // Winner gets net pot (after house fee)
-
-    // Update game in Supabase
-    const { error: gameError } = await supabase
-      .from("active_games")
+    // 4. Update game to completed status
+    const { error: updateError } = await supabase
+      .from('active_games')
       .update({
         status: 'completed',
-        winner_wallet: winnerWallet,
-        completed_at: new Date().toISOString(),
+        winner_wallet: winner,
         game_state: {
+          ...game_state,
           result,
-          player1Choice,
-          player2Choice,
-          randomBytes: randomBytes[0], // For transparency/verification
+          randomSeed: randomBytes[0]
         },
+        completed_at: new Date().toISOString()
       })
       .eq('id', gameId);
 
-    if (gameError) {
-      console.error('Error updating game:', gameError);
+    if (updateError) {
+      console.error('Game update failed:', updateError);
       return NextResponse.json({ error: 'Failed to update game' }, { status: 500 });
     }
 
-    // Insert game result into game_moves table
-    const { error: moveError } = await supabase.from('game_moves').insert({
-      game_id: gameId,
-      player_wallet: winnerWallet,
-      move_data: { result, winner: winnerWallet },
-      move_number: 1,
-    });
-
-    if (moveError) {
-      console.error('Error inserting move:', moveError);
-    }
-
-    // Update winner stats
+    // 5. Update winner stats
     const { data: winnerData } = await supabase
       .from('users')
       .select('total_games_played, total_games_won, total_earnings')
-      .eq('wallet_address', winnerWallet)
+      .eq('wallet_address', winner)
       .single();
 
     if (winnerData) {
@@ -106,14 +90,23 @@ export async function POST(request: NextRequest) {
           total_games_won: (winnerData.total_games_won || 0) + 1,
           total_earnings: (winnerData.total_earnings || 0) + winnerPayout,
         })
-        .eq('wallet_address', winnerWallet);
+        .eq('wallet_address', winner);
+    } else {
+      // Create winner user if doesn't exist
+      await supabase.from('users').insert({
+        wallet_address: winner,
+        username: `Player_${winner.slice(0, 6)}`,
+        total_games_played: 1,
+        total_games_won: 1,
+        total_earnings: winnerPayout,
+      });
     }
 
-    // Update loser stats
+    // 6. Update loser stats
     const { data: loserData } = await supabase
       .from('users')
       .select('total_games_played, total_earnings')
-      .eq('wallet_address', loserWallet)
+      .eq('wallet_address', loser)
       .single();
 
     if (loserData) {
@@ -121,20 +114,44 @@ export async function POST(request: NextRequest) {
         .from('users')
         .update({
           total_games_played: (loserData.total_games_played || 0) + 1,
-          total_earnings: (loserData.total_earnings || 0) - matchedWager,
+          total_earnings: (loserData.total_earnings || 0) - matched_wager,
         })
-        .eq('wallet_address', loserWallet);
+        .eq('wallet_address', loser);
+    } else {
+      // Create loser user if doesn't exist
+      await supabase.from('users').insert({
+        wallet_address: loser,
+        username: `Player_${loser.slice(0, 6)}`,
+        total_games_played: 1,
+        total_games_won: 0,
+        total_earnings: -matched_wager,
+      });
     }
 
-    return NextResponse.json({
-      result,
-      winner: winnerWallet,
-      winnerPayout,
-      houseFee,
-      randomSeed: randomBytes[0],
+    // 7. Insert game move for history
+    await supabase.from('game_moves').insert({
+      game_id: gameId,
+      player_wallet: winner,
+      move_data: { result, winner },
+      move_number: 1,
     });
-  } catch (error) {
-    console.error('Coin flip error:', error);
+
+    // 8. Return complete result to frontend
+    return NextResponse.json({
+      success: true,
+      result,
+      winner,
+      loser,
+      winnerPayout,
+      matched_wager,
+      total_pot,
+      house_fee,
+      net_pot,
+      randomSeed: randomBytes[0]
+    });
+
+  } catch (err) {
+    console.error('Flip route error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
