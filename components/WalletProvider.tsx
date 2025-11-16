@@ -24,18 +24,22 @@ export const WalletContextProvider: FC<Props> = ({ children }) => {
   // Use environment variable RPC endpoint
   const endpoint = useMemo(() => process.env.NEXT_PUBLIC_SOLANA_RPC || clusterApiUrl(network), [network]);
 
-  // Initialize wallets (removed Backpack due to compatibility issues)
+  // Initialize wallets with Devnet network configuration
   const wallets = useMemo(
     () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
+      new PhantomWalletAdapter({
+        network: WalletAdapterNetwork.Devnet,
+      }),
+      new SolflareWalletAdapter({
+        network: WalletAdapterNetwork.Devnet,
+      }),
     ],
     []
   );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>
           {children}
         </WalletModalProvider>
